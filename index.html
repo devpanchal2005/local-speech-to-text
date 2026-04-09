@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Speech to Text</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #111110;
+      --surface: #1c1c1b;
+      --surface2: #252523;
+      --sidebar-bg: #0d0d0c;
+      --sidebar-surface: #1a1a19;
+      --sidebar-border: rgba(255,255,255,0.07);
+      --sidebar-text: #c9c5bc;
+      --sidebar-text-muted: #666;
+      --sidebar-hover: rgba(255,255,255,0.05);
+      --sidebar-active: rgba(255,255,255,0.09);
+      --border: rgba(255,255,255,0.08);
+      --border-strong: rgba(255,255,255,0.14);
+      --text: #e8e4dc;
+      --text-muted: #888;
+      --text-hint: #555;
+      --accent: #818cf8;
+      --accent-light: #1e1b4b;
+      --accent-border: #3730a3;
+      --danger: #f87171;
+      --danger-light: #2d1111;
+      --success: #4ade80;
+      --radius: 10px;
+      --radius-lg: 14px;
+      --sidebar-w: 280px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      width: var(--sidebar-w);
+      min-width: var(--sidebar-w);
+      background: var(--sidebar-bg);
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--sidebar-border);
+      height: 100vh;
+      transition: transform 0.22s ease;
+    }
+
+    .sidebar-header {
+      padding: 18px 16px 14px;
+      border-bottom: 1px solid var(--sidebar-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .sidebar-header h2 { font-size: 13px; font-weight: 500; color: var(--sidebar-text); letter-spacing: 0.4px; text-transform: uppercase; }
+    .sidebar-clear { font-size: 11px; color: var(--sidebar-text-muted); background: none; border: none; cursor: pointer; padding: 3px 7px; border-radius: 5px; transition: background 0.12s; font-family: inherit; }
+    .sidebar-clear:hover { background: var(--sidebar-hover); color: var(--sidebar-text); }
+
+    .sidebar-search { padding: 10px 12px; border-bottom: 1px solid var(--sidebar-border); flex-shrink: 0; }
+    .sidebar-search input {
+      width: 100%; background: var(--sidebar-surface); border: 1px solid var(--sidebar-border);
+      border-radius: 7px; color: var(--sidebar-text); font-size: 13px; padding: 7px 10px; outline: none; font-family: inherit;
+    }
+    .sidebar-search input::placeholder { color: var(--sidebar-text-muted); }
+    .sidebar-search input:focus { border-color: rgba(99,91,255,0.5); }
+
+    .history-list { flex: 1; overflow-y: auto; padding: 8px 0; scrollbar-width: thin; scrollbar-color: #333 transparent; }
+    .history-list::-webkit-scrollbar { width: 4px; }
+    .history-list::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+
+    .history-empty { padding: 2rem 1rem; text-align: center; color: var(--sidebar-text-muted); font-size: 13px; line-height: 1.7; }
+    .history-empty svg { display: block; margin: 0 auto 10px; opacity: 0.3; }
+
+    .history-item {
+      margin: 2px 8px; padding: 10px 28px 10px 12px;
+      border-radius: 8px; cursor: pointer; transition: background 0.1s; position: relative;
+    }
+    .history-item:hover { background: var(--sidebar-hover); }
+    .history-item.active { background: var(--sidebar-active); }
+
+    .h-text {
+      font-size: 13px; color: var(--sidebar-text); line-height: 1.45;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word;
+    }
+    .h-meta { font-size: 11px; color: var(--sidebar-text-muted); margin-top: 5px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .h-dot { width: 2px; height: 2px; border-radius: 50%; background: #555; flex-shrink: 0; }
+    .h-lang { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: rgba(99,91,255,0.18); color: #a5b4fc; font-weight: 500; }
+
+    .h-del {
+      position: absolute; top: 8px; right: 8px;
+      background: none; border: none; color: #555; cursor: pointer;
+      font-size: 13px; padding: 2px 5px; border-radius: 4px;
+      opacity: 0; transition: opacity 0.1s, background 0.1s;
+    }
+    .history-item:hover .h-del { opacity: 1; }
+    .h-del:hover { background: rgba(220,38,38,0.2); color: #f87171; }
+
+    .sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--sidebar-border); font-size: 11px; color: var(--sidebar-text-muted); flex-shrink: 0; }
+
+    .main { flex: 1; display: flex; flex-direction: column; align-items: center; overflow-y: auto; padding: 2rem 1.5rem; gap: 1.25rem; }
+    .container { width: 100%; max-width: 620px; display: flex; flex-direction: column; gap: 1.25rem; }
+
+    header { text-align: center; }
+    header h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; }
+    header p { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+    .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; }
+
+    .settings-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label { font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    select {
+      background: var(--surface2); border: 0.5px solid var(--border-strong); border-radius: var(--radius);
+      color: var(--text); font-size: 14px; padding: 8px 10px; cursor: pointer; outline: none; width: 100%; font-family: inherit;
+    }
+    select:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-border); }
+
+    .record-area { display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: 1.75rem 1.25rem; }
+
+    .record-btn {
+      width: 76px; height: 76px; border-radius: 50%; border: 2px solid var(--border-strong);
+      background: var(--surface2); cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s ease; flex-shrink: 0;
+    }
+    .record-btn:hover { border-color: var(--accent); background: var(--accent-light); }
+    .record-btn.recording { border-color: var(--danger); background: var(--danger-light); animation: pulse 1.4s ease-in-out infinite; }
+    .record-btn.processing { border-color: var(--accent); background: var(--accent-light); cursor: default; }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.25); }
+      50% { box-shadow: 0 0 0 10px rgba(220,38,38,0); }
+    }
+
+    .mic-icon { width: 26px; height: 26px; }
+    .stop-icon { width: 18px; height: 18px; background: var(--danger); border-radius: 3px; }
+    .spinner { width: 22px; height: 22px; border: 2px solid var(--accent-border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .record-label { font-size: 13px; color: var(--text-muted); text-align: center; }
+
+    canvas#waveform { width: 100%; height: 46px; border-radius: 6px; display: none; }
+    canvas#waveform.active { display: block; }
+
+    .timer { font-size: 26px; font-weight: 500; letter-spacing: 2px; font-variant-numeric: tabular-nums; display: none; }
+    .timer.active { display: block; }
+
+    .transcript-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .transcript-header span { font-size: 13px; font-weight: 500; color: var(--text-muted); }
+    .transcript-actions { display: flex; gap: 7px; }
+
+    .btn-small {
+      font-size: 12px; padding: 5px 12px; border-radius: 20px;
+      border: 0.5px solid var(--border-strong); background: var(--surface2);
+      color: var(--text-muted); cursor: pointer; transition: all 0.12s; font-family: inherit;
+    }
+    .btn-small:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent-border); }
+    .btn-small:active { transform: scale(0.97); }
+
+    #transcript-box {
+      width: 100%; min-height: 140px; background: var(--surface2); border: 0.5px solid var(--border);
+      border-radius: var(--radius); padding: 12px; font-size: 15px; line-height: 1.65;
+      color: var(--text); resize: vertical; font-family: inherit; outline: none;
+    }
+    #transcript-box:focus { border-color: var(--accent); }
+    #transcript-box::placeholder { color: var(--text-hint); }
+
+    .meta-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .badge { font-size: 11px; padding: 3px 9px; border-radius: 20px; background: var(--surface2); border: 0.5px solid var(--border); color: var(--text-muted); display: none; }
+    .badge.visible { display: inline-block; }
+
+    .status-bar { font-size: 12px; color: var(--text-hint); text-align: center; padding-bottom: 1rem; }
+    .status-bar.error { color: var(--danger); }
+    .status-bar.success { color: var(--success); }
+
+    .sidebar-toggle {
+      display: none; position: fixed; top: 14px; left: 14px; z-index: 100;
+      background: var(--sidebar-bg); border: none; border-radius: 8px;
+      padding: 8px 10px; cursor: pointer; color: var(--sidebar-text);
+    }
+    @media (max-width: 700px) {
+      .sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 50; transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar-toggle { display: flex; }
+      .main { padding-top: 3.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<button class="sidebar-toggle" id="sidebar-toggle">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+</button>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <h2>History</h2>
+    <button class="sidebar-clear" onclick="clearHistory()">Clear all</button>
+  </div>
+  <div class="sidebar-search">
+    <input type="text" id="search-input" placeholder="Search transcripts..." oninput="filterHistory()"/>
+  </div>
+  <div class="history-list" id="history-list">
+    <div class="history-empty">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+      </svg>
+      No recordings yet.<br>Start speaking to build your history.
+    </div>
+  </div>
+  <div class="sidebar-footer" id="history-count">0 recordings</div>
+</aside>
+
+<main class="main">
+<div class="container">
+
+  <header>
+    <h1>Speech to Text</h1>
+    <p>Local, offline transcription powered by Faster-Whisper</p>
+  </header>
+
+  <div class="card">
+    <div class="settings-row">
+      <div class="field">
+        <label>Model</label>
+        <select id="model-select">
+          <option value="base" selected>Base (recommended)</option>
+          <option value="small">Small (balanced)</option>
+          <option value="medium">Medium (accurate)</option>
+
+        </select>
+      </div>
+      <div class="field">
+        <label>Language</label>
+        <select id="lang-select">
+          <option value="auto">Auto detect</option>
+          <option value="en">English</option>
+          <option value="hi">Hindi</option>
+          <option value="gu">Gujarati</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+          <option value="es">Spanish</option>
+          <option value="zh">Chinese</option>
+          <option value="ja">Japanese</option>
+          <option value="ar">Arabic</option>
+          <option value="pt">Portuguese</option>
+          <option value="ru">Russian</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card record-area">
+    <canvas id="waveform"></canvas>
+    <div class="timer" id="timer">0:00</div>
+    <button class="record-btn" id="record-btn" title="Click to record">
+      <svg class="mic-icon" id="mic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="2" width="6" height="13" rx="3"/>
+        <path d="M5 10a7 7 0 0 0 14 0"/>
+        <line x1="12" y1="19" x2="12" y2="22"/>
+        <line x1="8" y1="22" x2="16" y2="22"/>
+      </svg>
+      <div class="stop-icon" id="stop-icon" style="display:none;"></div>
+      <div class="spinner" id="spinner" style="display:none;"></div>
+    </button>
+    <div class="record-label" id="record-label">Click to start recording</div>
+  </div>
+
+  <div class="card">
+    <div class="transcript-header">
+      <span>Transcript</span>
+      <div class="transcript-actions">
+        <button class="btn-small" onclick="copyText()">Copy</button>
+        <button class="btn-small" onclick="downloadText()">Download</button>
+        <button class="btn-small" onclick="clearTranscript()">Clear</button>
+      </div>
+    </div>
+    <textarea id="transcript-box" placeholder="Your transcribed text will appear here..."></textarea>
+    <div class="meta-row">
+      <span class="badge" id="badge-dur"></span>
+      <span class="badge" id="badge-transcribe-time"></span>
+    </div>
+  </div>
+
+  <div class="status-bar" id="status-bar">Connecting to server...</div>
+
+</div>
+</main>
+
+<script>
+  const recordBtn = document.getElementById("record-btn");
+  const micIcon = document.getElementById("mic-icon");
+  const stopIcon = document.getElementById("stop-icon");
+  const spinner = document.getElementById("spinner");
+  const recordLabel = document.getElementById("record-label");
+  const transcriptBox = document.getElementById("transcript-box");
+  const timerEl = document.getElementById("timer");
+  const waveCanvas = document.getElementById("waveform");
+  const statusBar = document.getElementById("status-bar");
+  const historyList = document.getElementById("history-list");
+  const modelSelect = document.getElementById("model-select");
+  const langSelect = document.getElementById("lang-select");
+  const searchInput = document.getElementById("search-input");
+  const historyCount = document.getElementById("history-count");
+  const waveCtx = waveCanvas.getContext("2d");
+
+  let ws, mediaRecorder, audioChunks = [];
+  let audioContext, analyser, sourceNode;
+  let isRecording = false, isProcessing = false;
+  let timerInterval, startTime, animFrame;
+  let activeId = null;
+  let transcribeStart = 0;
+  let history = [];
+
+  try { history = JSON.parse(localStorage.getItem("stt_history") || "[]"); } catch(e) { history = []; }
+
+  // ── WebSocket ──
+  function connectWS() {
+    ws = new WebSocket(`ws://${location.host}/ws/transcribe`);
+    ws.onopen = () => setStatus("Ready", "");
+    ws.onclose = () => { setStatus("Disconnected. Retrying...", "error"); setTimeout(connectWS, 2000); };
+    ws.onerror = () => setStatus("Connection error", "error");
+    ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.status === "processing") {
+        transcribeStart = performance.now();
+        setStatus("Transcribing...", "");
+      } else if (msg.status === "done") {
+        const r = msg.result;
+        const existing = transcriptBox.value.trim();
+        transcriptBox.value = existing ? existing + "\n\n" + r.text : r.text;
+        showMeta(r);
+        addHistory(r.text, r.language, r.duration, r.language_probability);
+        const tTime = ((performance.now() - transcribeStart) / 1000).toFixed(2);
+        const btEl = document.getElementById("badge-transcribe-time");
+        btEl.textContent = "Transcribed in " + tTime + "s";
+        btEl.classList.add("visible");
+        setStatus("Done — transcription took " + tTime + "s", "success");
+        setProcessing(false);
+      } else if (msg.status === "error") {
+        setStatus("Error: " + msg.message, "error");
+        setProcessing(false);
+      } else if (msg.status === "model_ready") {
+        setStatus("Model '" + msg.model + "' loaded", "success");
+      }
+    };
+  }
+
+  function setStatus(msg, cls) {
+    statusBar.textContent = msg;
+    statusBar.className = "status-bar " + (cls || "");
+  }
+
+  function showMeta(r) {
+    if (r.duration) { document.getElementById("badge-dur").textContent = "Duration: " + r.duration + "s"; document.getElementById("badge-dur").classList.add("visible"); }
+  }
+
+  // ── History ──
+  function saveHistory() {
+    try { localStorage.setItem("stt_history", JSON.stringify(history)); } catch(e) {}
+  }
+
+  function addHistory(text, lang, dur, conf) {
+    if (!text) return;
+    const id = Date.now();
+    const now = new Date();
+    history.unshift({
+      id, text, lang, dur, conf,
+      ts: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      date: now.toLocaleDateString([], { month: "short", day: "numeric" })
+    });
+    if (history.length > 200) history.pop();
+    saveHistory();
+    renderHistory(searchInput.value);
+    setActive(id);
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  function renderHistory(filter) {
+    filter = (filter || "").toLowerCase();
+    const filtered = filter ? history.filter(h => h.text.toLowerCase().includes(filter)) : history;
+
+    if (!filtered.length) {
+      historyList.innerHTML = `<div class="history-empty">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+        </svg>
+        ${filter ? "No results found." : "No recordings yet.<br>Start speaking to build your history."}
+      </div>`;
+      historyCount.textContent = "0 recordings";
+      return;
+    }
+
+    historyCount.textContent = filtered.length + " recording" + (filtered.length !== 1 ? "s" : "");
+    historyList.innerHTML = filtered.map(h => `
+      <div class="history-item ${h.id === activeId ? "active" : ""}" data-id="${h.id}" onclick="loadHistory(${h.id})">
+        <div class="h-text">${escHtml(h.text)}</div>
+        <div class="h-meta">
+          <span>${h.date} ${h.ts}</span>
+          ${h.lang ? `<span class="h-dot"></span><span class="h-lang">${escHtml(h.lang)}</span>` : ""}
+          ${h.dur ? `<span class="h-dot"></span><span>${h.dur}s</span>` : ""}
+        </div>
+        <button class="h-del" onclick="deleteHistory(event,${h.id})" title="Delete">&#x2715;</button>
+      </div>
+    `).join("");
+  }
+
+  function loadHistory(id) {
+    const item = history.find(h => h.id === id);
+    if (!item) return;
+    transcriptBox.value = item.text;
+    setActive(id);
+    ["badge-dur","badge-transcribe-time"].forEach(bid => document.getElementById(bid).classList.remove("visible"));
+    if (item.dur) { document.getElementById("badge-dur").textContent = "Duration: " + item.dur + "s"; document.getElementById("badge-dur").classList.add("visible"); }
+  }
+
+  function setActive(id) {
+    activeId = id;
+    document.querySelectorAll(".history-item").forEach(el => {
+      el.classList.toggle("active", parseInt(el.dataset.id) === id);
+    });
+  }
+
+  function deleteHistory(e, id) {
+    e.stopPropagation();
+    history = history.filter(h => h.id !== id);
+    if (activeId === id) activeId = null;
+    saveHistory();
+    renderHistory(searchInput.value);
+  }
+
+  function clearHistory() {
+    if (!history.length || !confirm("Clear all history?")) return;
+    history = []; activeId = null;
+    saveHistory(); renderHistory();
+  }
+
+  function filterHistory() { renderHistory(searchInput.value); }
+
+  // ── Recording ──
+  recordBtn.addEventListener("click", async () => {
+    if (isProcessing) return;
+    isRecording ? stopRecording() : await startRecording();
+  });
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1 } });
+      audioContext = new AudioContext({ sampleRate: 16000 });
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      sourceNode = audioContext.createMediaStreamSource(stream);
+      sourceNode.connect(analyser);
+      mediaRecorder = new MediaRecorder(stream);
+      audioChunks = [];
+      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+      mediaRecorder.onstop = processRecording;
+      mediaRecorder.start();
+      isRecording = true;
+      recordBtn.classList.add("recording");
+      micIcon.style.display = "none"; stopIcon.style.display = "block";
+      recordLabel.textContent = "Recording... click to stop";
+      waveCanvas.classList.add("active"); timerEl.classList.add("active");
+      startTime = Date.now();
+      timerInterval = setInterval(updateTimer, 500);
+      drawWaveform();
+    } catch (err) {
+      setStatus("Microphone access denied: " + err.message, "error");
+    }
+  }
+
+  function stopRecording() {
+    isRecording = false;
+    mediaRecorder.stop();
+    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    cancelAnimationFrame(animFrame);
+    clearInterval(timerInterval);
+    waveCanvas.classList.remove("active"); timerEl.classList.remove("active");
+    recordBtn.classList.remove("recording");
+    stopIcon.style.display = "none";
+    recordBtn.classList.add("processing");
+    spinner.style.display = "block"; micIcon.style.display = "none";
+    recordLabel.textContent = "Processing...";
+    isProcessing = true;
+    setStatus("Sending audio for transcription...", "");
+  }
+
+  function setProcessing(val) {
+    isProcessing = val;
+    spinner.style.display = val ? "block" : "none";
+    if (!val) { micIcon.style.display = "block"; recordBtn.classList.remove("processing"); recordLabel.textContent = "Click to start recording"; }
+  }
+
+  async function processRecording() {
+    const blob = new Blob(audioChunks, { type: "audio/webm" });
+    const buf = await blob.arrayBuffer();
+    const decoded = await new AudioContext({ sampleRate: 16000 }).decodeAudioData(buf);
+    const ch = decoded.getChannelData(0);
+    const int16 = new Int16Array(ch.length);
+    for (let i = 0; i < ch.length; i++) int16[i] = Math.max(-32768, Math.min(32767, ch[i] * 32767));
+    ws.send(JSON.stringify({ action: "transcribe", audio: Array.from(int16), model: modelSelect.value, language: langSelect.value }));
+  }
+
+  function drawWaveform() {
+    animFrame = requestAnimationFrame(drawWaveform);
+    const buf = analyser.frequencyBinCount, data = new Uint8Array(buf);
+    analyser.getByteTimeDomainData(data);
+    const W = waveCanvas.offsetWidth, H = waveCanvas.offsetHeight;
+    waveCanvas.width = W; waveCanvas.height = H;
+    waveCtx.clearRect(0, 0, W, H);
+    waveCtx.strokeStyle = "#dc2626"; waveCtx.lineWidth = 2;
+    waveCtx.beginPath();
+    const sw = W / buf; let x = 0;
+    for (let i = 0; i < buf; i++) {
+      const y = (data[i] / 128.0 * H) / 2;
+      i === 0 ? waveCtx.moveTo(x, y) : waveCtx.lineTo(x, y);
+      x += sw;
+    }
+    waveCtx.lineTo(W, H / 2); waveCtx.stroke();
+  }
+
+  function updateTimer() {
+    const s = Math.floor((Date.now() - startTime) / 1000);
+    timerEl.textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+  }
+
+  function copyText() { navigator.clipboard.writeText(transcriptBox.value).then(() => setStatus("Copied!", "success")); }
+
+  function downloadText() {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([transcriptBox.value], { type: "text/plain" }));
+    a.download = "transcript_" + new Date().toISOString().slice(0, 10) + ".txt";
+    a.click();
+  }
+
+  function clearTranscript() {
+    transcriptBox.value = ""; activeId = null;
+    document.querySelectorAll(".history-item").forEach(el => el.classList.remove("active"));
+    ["badge-dur","badge-transcribe-time"].forEach(id => document.getElementById(id).classList.remove("visible"));
+  }
+
+  document.getElementById("sidebar-toggle").addEventListener("click", () => {
+    document.getElementById("sidebar").classList.toggle("open");
+  });
+
+  modelSelect.addEventListener("change", () => {
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({ action: "preload", model: modelSelect.value }));
+      setStatus("Loading model '" + modelSelect.value + "'...", "");
+    }
+  });
+
+  renderHistory();
+  connectWS();
+</script>
+</body>
+</html>
