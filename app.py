@@ -41,6 +41,66 @@ def ensure_models_downloaded():
 
 ensure_models_downloaded()
 
+def create_launcher():
+    import sys, stat
+    here = os.path.dirname(os.path.abspath(__file__))
+    system = sys.platform
+
+    if system == "win32":
+        launcher = os.path.join(here, "run.bat")
+        if not os.path.exists(launcher):
+            with open(launcher, "w") as f:
+                f.write(
+                    "@echo off\n"
+                    "title Speech to Text\n"
+                    "cd /d '%~dp0'\n"
+                    "if exist venv\\Scripts\\activate.bat (\n"
+                    "    call venv\\Scripts\\activate.bat\n"
+                    ") else (\n"
+                    "    echo [warning] No venv found, using system Python.\n"
+                    ")\n"
+                    "python app.py\n"
+                    "pause\n"
+                )
+            print("[launcher] Created run.bat — double-click it next time to start.")
+
+    elif system == "darwin":
+        launcher = os.path.join(here, "run.command")
+        if not os.path.exists(launcher):
+            with open(launcher, "w") as f:
+                f.write(
+                    "#!/bin/bash\n"
+                    "cd \"$(dirname \"$0\")\"\n"
+                    "if [ -f venv/bin/activate ]; then\n"
+                    "    source venv/bin/activate\n"
+                    "else\n"
+                    "    echo '[warning] No venv found, using system Python.'\n"
+                    "fi\n"
+                    "python3 app.py\n"
+                )
+            os.chmod(launcher, os.stat(launcher).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+            print("[launcher] Created run.command — double-click it from Finder next time.")
+
+    else:
+        launcher = os.path.join(here, "run.sh")
+        if not os.path.exists(launcher):
+            with open(launcher, "w") as f:
+                f.write(
+                    "#!/bin/bash\n"
+                    "cd \"$(dirname \"$0\")\"\n"
+                    "if [ -f venv/bin/activate ]; then\n"
+                    "    source venv/bin/activate\n"
+                    "else\n"
+                    "    echo '[warning] No venv found, using system Python.'\n"
+                    "fi\n"
+                    "python3 app.py\n"
+                )
+            os.chmod(launcher, os.stat(launcher).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+            print("[launcher] Created run.sh — run it with ./run.sh or double-click from your file manager next time.")
+
+create_launcher()
+
+
 # Global state
 model_cache = {}
 recording_queue = queue.Queue()
@@ -82,7 +142,7 @@ async def root():
 
 @app.get("/api/models")
 async def list_models():
-    return {"models": ["base", "small", "medium"]}
+    return {"models": ["base", "small", "medium", "large-v3"]}
 
 @app.websocket("/ws/transcribe")
 async def websocket_transcribe(websocket: WebSocket):
