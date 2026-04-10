@@ -1,77 +1,36 @@
-# Speech to Text - Local Tool
+# local-speech-to-text
 
-Offline, OS-independent speech-to-text using Faster-Whisper + FastAPI + a browser UI.
+Offline, OS-independent speech-to-text tool using Faster-Whisper + FastAPI + a browser UI.
 
----
-
-## Requirements
-- Python 3.9+
-- A working microphone
-- No internet required after setup (models download once on first use)
+No cloud, no API keys, no subscriptions. Everything runs locally on your machine.
 
 ---
 
-## Setup
+## What it does
 
-### 1. Create a virtual environment (recommended)
+- Record audio directly from your browser
+- Transcribes using Faster-Whisper (runs fully on CPU)
+- Supports 99 languages with auto-detection
+- Persistent history with search across all past recordings
+- Copy, edit, and download transcripts
+
+---
+
+## Quick start
+
 ```bash
-python -m venv venv
-
-# macOS / Linux
-source venv/bin/activate
-
-# Windows
-venv\Scripts\activate
-```
-
-### 2. Install dependencies
-```bash
+# 1. Clone or download the project
+# 2. Install dependencies
 pip install -r requirements.txt
-```
 
-> On some Linux systems you may need PortAudio for sounddevice:
-> ```bash
-> sudo apt install portaudio19-dev   # Debian/Ubuntu
-> sudo dnf install portaudio-devel   # Fedora
-> brew install portaudio             # macOS (if needed)
-> ```
-
----
-
-## Run
-
-```bash
+# 3. Run
 python app.py
 ```
 
-Then open your browser at: **http://localhost:8000**
+The browser opens automatically at `http://localhost:8000`.
+A platform-specific launcher (`run.bat` / `run.sh` / `run.command`) is created on first run — use that next time instead.
 
----
-
-## How it works
-
-1. Click the mic button in the browser to start recording.
-2. Click again to stop. Audio is sent over a WebSocket to the local server.
-3. Faster-Whisper transcribes it and sends the text back.
-4. Transcript appears in the text box. You can copy, download, or edit it.
-
----
-
-## Model sizes
-
-| Model | Size | Speed | Best for |
-|-------|------|-------|----------|
-| base | ~145 MB | Fast | Everyday use (default) |
-| small | ~460 MB | Medium | Better accuracy |
-| medium | ~1.5 GB | Slower | High accuracy |
-
-Models are downloaded automatically on first use from HuggingFace and cached locally.
-
----
-
-## Supported languages
-
-The tool auto-detects language by default. You can also manually select: English, Hindi, Gujarati, French, German, Spanish, Chinese, Japanese, Arabic, Portuguese, Russian, and many more (Whisper supports 99 languages).
+For full setup instructions including virtual environments, PortAudio, and model pre-downloading, see [SETUP.md](SETUP.md).
 
 ---
 
@@ -79,9 +38,21 @@ The tool auto-detects language by default. You can also manually select: English
 
 ```
 stt_tool/
-  app.py           # FastAPI backend + WebSocket transcription
-  index.html       # Frontend UI (served by FastAPI)
-  requirements.txt
-  README.md
+  app.py            # FastAPI backend + WebSocket transcription
+  index.html        # Frontend UI (served by FastAPI)
+  requirements.txt  # Python dependencies
+  README.md         # This file
+  SETUP.md          # Detailed setup guide
+  run.bat           # Windows launcher (auto-generated)
+  run.sh            # Linux launcher (auto-generated)
+  run.command       # macOS launcher (auto-generated)
 ```
-"# local-speech-to-text" 
+
+---
+
+## Tech stack
+
+- [Faster-Whisper](https://github.com/SYSTRAN/faster-whisper) — CTranslate2-based Whisper inference, 4x faster than original
+- [FastAPI](https://fastapi.tiangolo.com/) — backend and WebSocket server
+- [Uvicorn](https://www.uvicorn.org/) — ASGI server
+- Vanilla JS frontend, no frameworks
